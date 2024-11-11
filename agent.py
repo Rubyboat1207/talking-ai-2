@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 import abc
 from enum import Enum
-from typing import Callable, Optional
+from typing import Callable, Optional, Coroutine, Dict, Union
 import uuid
 from threading import Thread, Lock
-
+import asyncio
 from speech_provider import SpeechProvider
 
 
@@ -58,13 +58,14 @@ class AgentResponse:
     tool_calls: Optional[list[ToolCallContext]]
     finish_reason: FinishReason
 
+ActionFunction = Callable[[Dict[str, ...]], Union[str, Coroutine[str, None, str]]]
 
 @dataclass
 class Action:
-    parameter_schema: object
-    description: str
     name: str
-    func: Callable[[dict[str, ...]], str]
+    description: str
+    parameter_schema: object
+    func: ActionFunction
 
 
 class ActionManager:
@@ -83,7 +84,7 @@ class ActionManager:
         self.forced_actions_queue = []
         self.action_mutex = Lock()
 
-    def preform_action(self, call: ToolCallContext) -> ToolCallResponseContext:
+    async def preform_action(self, call: ToolCallContext) -> ToolCallResponseContext:
         """Called only by agents. Will execute a function of a given name."""
         self.action_mutex.acquire()
         if call.value in self.actions:
@@ -104,6 +105,9 @@ class ActionManager:
 
         try:
             resp = action.func(call.parameters)
+
+            if asyncio.iscoroutine(resp):
+                resp = await resp
         except Exception as error:
             res_ctx = ToolCallResponseContext("An error occurred {}".format(error), call.guid)
             call.response_id = res_ctx.guid
@@ -169,7 +173,7 @@ class Agent(metaclass=abc.ABCMeta):
     def generate_response(self) -> (AgentResponse, str):
         pass
 
-    def add_response_to_context(self, response: AgentResponse, execute_calls: bool = False,
+    async def add_response_to_context(self, response: AgentResponse, execute_calls: bool = False,
                                 execute_calls_async: bool = False):
         self.add_context(AgentResponseContext(response.text_response))
 
@@ -183,15 +187,13 @@ class Agent(metaclass=abc.ABCMeta):
             return
 
         for tool_call in response.tool_calls:
-            def i_hate_internal_functions():
-                self.add_context(self.action_manager.preform_action(tool_call))
+            async def i_hate_internal_functions():
+                self.add_context(await self.action_manager.preform_action(tool_call))
 
             if execute_calls_async:
-                thread = Thread(target=i_hate_internal_functions)
-
-                thread.start()
+                asyncio.create_task(i_hate_internal_functions())
             else:
-                i_hate_internal_functions()
+                await i_hate_internal_functions()
 
     def speak_recent_response(self):
         for entry in reversed(self._ctx):

@@ -1,7 +1,7 @@
 from abc import ABCMeta
 from typing import Iterable
 from json import dumps, loads
-from openai import Client
+from openai import Client, NOT_GIVEN
 from openai.types.chat import ChatCompletionMessageParam, ChatCompletionAssistantMessageParam, ChatCompletionToolParam
 
 
@@ -74,7 +74,7 @@ class OpenAiAgent(Agent, metaclass=ABCMeta):
         response = self.client.chat.completions.create(
             model="gpt-4o-mini",
             messages=messages,
-            tools=tools
+            tools=tools if len(tools) > 0 else NOT_GIVEN
         )
 
         choice = response.choices[0]
