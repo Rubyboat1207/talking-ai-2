@@ -1,32 +1,48 @@
+import asyncio
 from threading import Thread
-
 from dotenv import load_dotenv
 from agent import HumanContext, Action, FinishReason
 from agents.openai_agent import OpenAiAgent
-from speech_providers.console_output_speech_provider import ConsoleOutputSpeechProvider
+from speech_providers.styletts2_speech_provider import StyleTTS2SpeechProvider
+from stt import stt
 from websocket import WebsocketManager
-import asyncio
 
 load_dotenv()
 
-agent = OpenAiAgent(ConsoleOutputSpeechProvider())
+agent = OpenAiAgent(StyleTTS2SpeechProvider())
+
 
 async def main():
-    asyncio.create_task(WebsocketManager(agent).init_websocket())
+    websocket_manager = WebsocketManager(agent)
+
+    # Create the websocket task and await it in the background
+    websocket_task = asyncio.create_task(websocket_manager.init_websocket())
 
     loop = asyncio.get_running_loop()
 
-    while True:
-        user_input = await loop.run_in_executor(None, input, 'speak to it: ')
-        agent.add_context(HumanContext(user_input))
+    try:
+        while True:
+            # Run blocking input in an executor to avoid blocking the event loop
+            user_input = await stt()
+            agent.add_context(HumanContext(user_input))
 
-        res = None
+            res = None
+            while res is None or res.finish_reason != FinishReason.STOP:
+                res = agent.generate_response()
+                await agent.add_response_to_context(res, True)
 
-        while res is None or res.finish_reason != FinishReason.STOP:
-            res = agent.generate_response()
+            agent.speak_recent_response()
 
-            await agent.add_response_to_context(res, True)
+    except asyncio.CancelledError:
+        print("Main function cancelled, shutting down...")
 
-        agent.speak_recent_response()
+    finally:
+        # Ensure websocket_task is awaited and handled
+        websocket_task.cancel()
+        try:
+            await websocket_task
+        except asyncio.CancelledError:
+            print("Websocket task cancelled and shut down gracefully.")
+
 
 asyncio.run(main())

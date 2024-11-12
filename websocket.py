@@ -1,4 +1,6 @@
 import asyncio
+import time
+
 import websockets
 import json
 from uuid import uuid4 as uuid
@@ -6,7 +8,7 @@ from uuid import uuid4 as uuid
 from websockets import ConnectionClosedError
 from websockets.asyncio.server import ServerConnection
 
-from agent import Agent, Action
+from agent import Agent, Action, EnvironmentalContext
 
 
 class WebsocketManager:
@@ -17,21 +19,28 @@ class WebsocketManager:
 
     async def manage(self, websocket: ServerConnection):
         self.connections.add(websocket)
+        print('send_all_actions requested')
+        await asyncio.sleep(2)
         await websocket.send(json.dumps({'type': 'send_all_actions'}))
 
         while True:
             try:
+                str_data = await websocket.recv()
+                print('received: ', str_data)
+                data = json.loads(str_data)
 
-                data = json.loads(await websocket.recv())
                 path = data.get('path')
 
                 if path == 'actions/register':
+                    action_name = data['name']
+
                     async def execute(params: dict[str, ...]):
                         cur_id = str(uuid())
 
                         await websocket.send(json.dumps(
                             {
                                 'type': 'execute_action',
+                                'action_name': action_name,
                                 'action_id': cur_id,
                                 'params': json.dumps(params),
                             }
@@ -67,6 +76,9 @@ class WebsocketManager:
 
                     action.set_result(data['result'])
                     action.done()
+                    await websocket.send(json.dumps({'ok': True}))
+                elif path == 'context/environment':
+                    self.agent.add_context(EnvironmentalContext(data['value']))
                     await websocket.send(json.dumps({'ok': True}))
                 else:
                     await websocket.send(json.dumps({'ok': False, 'message': 'unknown message type'}))

@@ -77,9 +77,13 @@ class OpenAiAgent(Agent, metaclass=ABCMeta):
             tools=tools if len(tools) > 0 else NOT_GIVEN
         )
 
+
         choice = response.choices[0]
 
         finish_reason = FinishReason.STOP
+
+        print(choice.model_dump_json())
+        print(dumps(messages, indent=2))
 
         if choice.finish_reason == "tool_calls":
             finish_reason = FinishReason.TOOL_CALL

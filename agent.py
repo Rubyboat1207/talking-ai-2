@@ -109,7 +109,9 @@ class ActionManager:
             if asyncio.iscoroutine(resp):
                 resp = await resp
         except Exception as error:
-            res_ctx = ToolCallResponseContext("An error occurred {}".format(error), call.guid)
+            res_ctx = ToolCallResponseContext(f"An error occurred {str(error)}. Tell the user.", call.guid)
+            print("AN ERROR IS HAPPENING ALSKDLADSLALJDNAS")
+            print('an error occurred:', error)
             call.response_id = res_ctx.guid
             self.action_mutex.release()
             return res_ctx
@@ -141,6 +143,7 @@ class ActionManager:
 
     def register_action(self, action: Action):
         """Adds the action to the internal registered actions dictionary."""
+        print(f'registering action {action.name}')
         self.actions[action.name] = action
 
     def unregister_action(self, name: str):
