@@ -47,6 +47,10 @@ class AgentResponseContext(AgentContext):
     pass
 
 
+class SystemPromptContext(AgentContext):
+    pass
+
+
 class FinishReason(Enum):
     STOP = 0,
     TOOL_CALL = 1
@@ -168,9 +172,12 @@ class Agent(metaclass=abc.ABCMeta):
         self._speech_provider = speech_provider
         self.action_manager = ActionManager()
         self._ctx: list[AgentContext] = []
+        self.context_added_notifiers: list[Callable[[AgentContext], ...]] = []
 
     def add_context(self, agent_context: AgentContext):
         self._ctx.append(agent_context)
+        for notifier in self.context_added_notifiers:
+            notifier(agent_context)
 
     @abc.abstractmethod
     def generate_response(self) -> (AgentResponse, str):

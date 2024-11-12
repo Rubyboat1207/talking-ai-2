@@ -6,7 +6,7 @@ from openai.types.chat import ChatCompletionMessageParam, ChatCompletionAssistan
 
 
 from agent import Agent, AgentResponse, HumanContext, EnvironmentalContext, ToolCallContext, AgentContext, \
-    ToolCallResponseContext, FinishReason
+    ToolCallResponseContext, FinishReason, SystemPromptContext
 
 
 class OpenAiAgent(Agent, metaclass=ABCMeta):
@@ -58,6 +58,11 @@ class OpenAiAgent(Agent, metaclass=ABCMeta):
                     'content': entry.value
                 })
                 last_agent_ctx = messages[len(messages) - 1]
+            elif isinstance(entry, SystemPromptContext):
+                messages.append({
+                    'role': 'system',
+                    'content': entry.value
+                })
 
         tools: list[ChatCompletionToolParam] = []
 

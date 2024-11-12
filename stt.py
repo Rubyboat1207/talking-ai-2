@@ -1,5 +1,9 @@
 import asyncio
-
+import keyboard
+import sounddevice as sd
+import numpy as np
+import threading
+import speech_recognition as sr
 
 async def stt(start_key='f8', end_key='f9'):
     loop = asyncio.get_event_loop()
@@ -8,11 +12,7 @@ async def stt(start_key='f8', end_key='f9'):
 
 
 def blocking_stt_function(start_key, end_key):
-    import keyboard
-    import sounddevice as sd
-    import numpy as np
-    import threading
-    import speech_recognition as sr
+
 
     # Wait for the user to press the start key
     print(f"Press {start_key.upper()} to start recording...")
