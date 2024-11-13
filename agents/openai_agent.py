@@ -79,7 +79,7 @@ class OpenAiAgent(Agent, metaclass=ABCMeta):
         print(dumps(messages, indent=2))
 
         response = self.client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4o",
             messages=messages,
             tools=tools if len(tools) > 0 else NOT_GIVEN
         )

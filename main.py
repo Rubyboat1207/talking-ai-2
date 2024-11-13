@@ -4,13 +4,13 @@ from threading import Thread
 from dotenv import load_dotenv
 from agent import HumanContext, Action, FinishReason, AgentContext, EnvironmentalContext, SystemPromptContext
 from agents.openai_agent import OpenAiAgent
-from speech_providers.windows_speech_provider import WindowsTTSProvider
+from speech_providers.console_output_speech_provider import ConsoleOutputSpeechProvider as Sp
 from stt import stt
 from websocket import WebsocketManager
 
 load_dotenv()
 
-agent = OpenAiAgent(WindowsTTSProvider())
+agent = OpenAiAgent(Sp())
 
 wait_run_without_human: asyncio.Future | None = None
 on_env_ctx_added = -1
@@ -30,11 +30,12 @@ def on_context_added(ctx: AgentContext):
 
 agent.context_added_notifiers.append(on_context_added)
 
-agent.add_context(SystemPromptContext("You are a TTS ai inscryption expert assistant. Keep responses speakable and short."))
+agent.add_context(SystemPromptContext("You are a TTS ai. Keep responses speakable and short. Dont make lists. Be decisive. No markdown is allowed."))
 
 async def main():
     global wait_run_without_human
     global on_env_ctx_added
+    use_stt = False
     websocket_manager = WebsocketManager(agent)
 
     # Create the websocket task and await it in the background
@@ -58,7 +59,10 @@ async def main():
             #     wait_run_without_human = loop.create_future()
             # else:
             #     agent.add_context(HumanContext(user_input))
-            text = await stt()
+            if use_stt:
+                text = await stt()
+            else:
+                text = await loop.run_in_executor(None, input, 'speak to it: ')
             print('you said ' + text)
             agent.add_context(HumanContext(text))
 
