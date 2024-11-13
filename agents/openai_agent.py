@@ -76,6 +76,8 @@ class OpenAiAgent(Agent, metaclass=ABCMeta):
                 'type': 'function'
             })
 
+        print(dumps(messages, indent=2))
+
         response = self.client.chat.completions.create(
             model="gpt-4o-mini",
             messages=messages,
@@ -88,7 +90,6 @@ class OpenAiAgent(Agent, metaclass=ABCMeta):
         finish_reason = FinishReason.STOP
 
         print(choice.model_dump_json())
-        print(dumps(messages, indent=2))
 
         if choice.finish_reason == "tool_calls":
             finish_reason = FinishReason.TOOL_CALL

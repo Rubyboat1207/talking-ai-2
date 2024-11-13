@@ -175,7 +175,12 @@ class Agent(metaclass=abc.ABCMeta):
         self.context_added_notifiers: list[Callable[[AgentContext], ...]] = []
 
     def add_context(self, agent_context: AgentContext):
-        self._ctx.append(agent_context)
+        if isinstance(agent_context, ToolCallResponseContext) and not isinstance(self._ctx[len(self._ctx) - 1], ToolCallContext):
+            recent = self.find_recent_response()
+            self._ctx.insert(self._ctx.index(recent) + 1, agent_context)
+        else:
+            self._ctx.append(agent_context)
+
         for notifier in self.context_added_notifiers:
             notifier(agent_context)
 
@@ -205,10 +210,15 @@ class Agent(metaclass=abc.ABCMeta):
             else:
                 await i_hate_internal_functions()
 
-    def speak_recent_response(self):
+    def find_recent_response(self):
         for entry in reversed(self._ctx):
             if isinstance(entry, AgentResponseContext):
-                if entry.value == '':
-                    return
-                self._speech_provider.generate_speech(entry.value)
-                return
+                return entry
+
+    def speak_recent_response(self):
+        res = self.find_recent_response()
+        print('speaking: ' + res.value)
+        if res.value == '':
+            return
+        self._speech_provider.generate_speech(res.value)
+        return

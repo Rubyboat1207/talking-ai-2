@@ -58,8 +58,9 @@ async def main():
             #     wait_run_without_human = loop.create_future()
             # else:
             #     agent.add_context(HumanContext(user_input))
-
-            agent.add_context(HumanContext(await stt()))
+            text = await stt()
+            print('you said ' + text)
+            agent.add_context(HumanContext(text))
 
             res = None
             while res is None or res.finish_reason != FinishReason.STOP:

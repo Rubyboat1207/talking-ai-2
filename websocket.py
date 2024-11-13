@@ -11,6 +11,33 @@ from websockets.asyncio.server import ServerConnection
 from agent import Agent, Action, EnvironmentalContext
 
 
+def create_action(websocket_manager: "WebsocketManager", action_name: str, websocket):
+    async def execute(params: dict[str, ...]):
+        cur_id = str(uuid())
+
+        await websocket.send(json.dumps(
+            {
+                'type': 'execute_action',
+                'action_name': action_name,
+                'action_id': cur_id,
+                'params': json.dumps(params),
+            }
+        ))
+        print(id(asyncio.get_running_loop()))
+
+        future = asyncio.get_running_loop().create_future()
+
+        websocket_manager.pending_actions[cur_id] = future
+
+        response = await future
+
+        del websocket_manager.pending_actions[cur_id]
+
+        return response
+
+    return execute
+
+
 class WebsocketManager:
     def __init__(self, agent: Agent):
         self.agent = agent
@@ -34,34 +61,11 @@ class WebsocketManager:
                 if path == 'actions/register':
                     action_name = data['name']
 
-                    async def execute(params: dict[str, ...]):
-                        cur_id = str(uuid())
-
-                        await websocket.send(json.dumps(
-                            {
-                                'type': 'execute_action',
-                                'action_name': action_name,
-                                'action_id': cur_id,
-                                'params': json.dumps(params),
-                            }
-                        ))
-                        print(id(asyncio.get_running_loop()))
-
-                        future = asyncio.get_running_loop().create_future()
-
-                        self.pending_actions[cur_id] = future
-
-                        response = await future
-
-                        del self.pending_actions[cur_id]
-
-                        return response
-
                     action = Action(
                         data['name'],
                         data['description'],
                         data['schema'],
-                        execute
+                        create_action(self, action_name, websocket)
                     )
 
                     self.agent.action_manager.register_action(action)
