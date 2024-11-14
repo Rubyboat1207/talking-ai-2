@@ -9,8 +9,7 @@ class StyleTTS2SpeechProvider(SpeechProvider, metaclass=ABCMeta):
         self.tts = tts.StyleTTS2()
 
     def generate_speech(self, text: str):
-        print(text)
-        wav = self.tts.inference(text)
+        wav = self.tts.inference(text, target_voice_path='./speech_providers/sample/voice.mp3')
 
         sd.play(wav, 24000)
 

@@ -133,17 +133,14 @@ class ActionManager:
                     return idx, action
 
     def response_meets_action_criteria(self, response: AgentResponse):
-        """Called only by agents. Will return whether a response uses all forced actions or any other future added requirements that may mean that the response is regenerated."""
+        """Called only by agents. Will return whether a response uses any forced actions or any other future added requirements that may mean that the response is regenerated."""
         if len(self.forced_actions_queue) == 0:
             return True
 
         names = [call.value for call in response.tool_calls]
 
-        for action in self.forced_actions_queue:
-            if action not in names:
-                return False
+        return any([name in self.forced_actions_queue for name in names])
 
-        return True
 
     def register_action(self, action: Action):
         """Adds the action to the internal registered actions dictionary."""

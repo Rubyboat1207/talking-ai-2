@@ -4,7 +4,7 @@ from threading import Thread
 from dotenv import load_dotenv
 from agent import HumanContext, Action, FinishReason, AgentContext, EnvironmentalContext, SystemPromptContext
 from agents.openai_agent import OpenAiAgent
-from speech_providers.console_output_speech_provider import ConsoleOutputSpeechProvider as Sp
+from speech_providers.styletts2_speech_provider import StyleTTS2SpeechProvider as Sp
 from stt import stt
 from websocket import WebsocketManager
 
@@ -36,6 +36,7 @@ async def main():
     global wait_run_without_human
     global on_env_ctx_added
     use_stt = False
+    auto_prompt = True
     websocket_manager = WebsocketManager(agent)
 
     # Create the websocket task and await it in the background
@@ -45,6 +46,8 @@ async def main():
     loop = asyncio.get_running_loop()
 
     wait_run_without_human = loop.create_future()
+
+    await websocket_manager.requests_action.wait()
 
     try:
         while True:
@@ -59,12 +62,15 @@ async def main():
             #     wait_run_without_human = loop.create_future()
             # else:
             #     agent.add_context(HumanContext(user_input))
-            if use_stt:
-                text = await stt()
-            else:
-                text = await loop.run_in_executor(None, input, 'speak to it: ')
-            print('you said ' + text)
-            agent.add_context(HumanContext(text))
+            if not auto_prompt:
+                if use_stt:
+                    text = await stt()
+                else:
+                    text = await loop.run_in_executor(None, input, 'speak to it: ')
+                print('you said ' + text)
+                agent.add_context(HumanContext(text))
+
+
 
             res = None
             while res is None or res.finish_reason != FinishReason.STOP:

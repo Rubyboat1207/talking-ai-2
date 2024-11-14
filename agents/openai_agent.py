@@ -81,7 +81,10 @@ class OpenAiAgent(Agent, metaclass=ABCMeta):
         response = self.client.chat.completions.create(
             model="gpt-4o",
             messages=messages,
-            tools=tools if len(tools) > 0 else NOT_GIVEN
+            tools=tools if len(tools) > 0 else NOT_GIVEN,
+            tool_choice='auto' if
+                len(self.action_manager.forced_actions_queue) == 0
+            else {'function': {'name': self.action_manager.forced_actions_queue[0]}, 'type': 'function'}
         )
 
 

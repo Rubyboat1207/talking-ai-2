@@ -43,6 +43,7 @@ class WebsocketManager:
         self.agent = agent
         self.connections = set()
         self.pending_actions: dict[str, asyncio.Future] = {}
+        self.requests_action = asyncio.Event()
 
     async def manage(self, websocket: ServerConnection):
         self.connections.add(websocket)
@@ -59,18 +60,12 @@ class WebsocketManager:
                 path = data.get('path')
 
                 if path == 'actions/register':
-                    action_name = data['name']
-
-                    action = Action(
-                        data['name'],
-                        data['description'],
-                        data['schema'],
-                        create_action(self, action_name, websocket)
-                    )
-
-                    self.agent.action_manager.register_action(action)
-
-                    await websocket.send(json.dumps({'ok': True}))
+                    self.agent.action_manager.register_action(self.generate_action_using_data(data, websocket))
+                elif path == 'actions/register/ephemeral':
+                    actions = []
+                    for action in data['actions']:
+                        actions.append(self.generate_action_using_data(action, websocket))
+                    self.agent.action_manager.create_ephemeral_action_group(actions)
                 elif path == 'action/result':
                     action = self.pending_actions.get(data['action_id'])
 
@@ -80,16 +75,29 @@ class WebsocketManager:
 
                     action.set_result(data['result'])
                     action.done()
-                    await websocket.send(json.dumps({'ok': True}))
                 elif path == 'context/environment':
                     self.agent.add_context(EnvironmentalContext(data['value']))
-                    await websocket.send(json.dumps({'ok': True}))
+                elif path == 'actions/request':
+                    self.requests_action.set()
+                elif path == 'actions/force':
+                    self.agent.action_manager.enqueue_forced_action(data['name'])
                 else:
                     await websocket.send(json.dumps({'ok': False, 'message': 'unknown message type'}))
             except json.JSONDecodeError:
                 await websocket.send(json.dumps({"ok": False, "message": "Invalid JSON"}))
             except ConnectionClosedError:
                 break
+
+    def generate_action_using_data(self, data, websocket):
+        return Action(
+            data['name'],
+            data['description'],
+            data['schema'],
+            create_action(self, data['name'], websocket)
+        )
+
+
+
 
     async def init_websocket(self):
         async def man(websocket):
