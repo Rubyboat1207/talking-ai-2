@@ -26,12 +26,18 @@ def create_action(websocket_manager: "WebsocketManager", action_name: str, webso
         print(id(asyncio.get_running_loop()))
 
         future = asyncio.get_running_loop().create_future()
-
         websocket_manager.pending_actions[cur_id] = future
 
-        response = await future
-
-        del websocket_manager.pending_actions[cur_id]
+        try:
+            # Await the future with a 10-second timeout
+            response = await asyncio.wait_for(future, timeout=30.0)
+        except asyncio.TimeoutError:
+            # Handle timeout here if needed
+            print(f"Action {action_name} {cur_id} timed out. ")
+            response = "sorry, the action timed out."  # Or any default response you'd like to return on timeout
+        finally:
+            # Clean up pending actions regardless of timeout
+            del websocket_manager.pending_actions[cur_id]
 
         return response
 

@@ -84,7 +84,7 @@ class ActionManager:
     def __init__(self):
         self.lifetime_ephemeral_group_count = 0
         self.actions = {}
-        self.ephemeral_groups = {}
+        self.ephemeral_groups: dict[int, list[Action]] = {}
         self.forced_actions_queue = []
         self.action_mutex = Lock()
 
@@ -126,14 +126,16 @@ class ActionManager:
         return res_ctx
 
     def _find_action_name_in_ephemeral_group(self, name: str) -> (int, Action) or None:
-        """finds an action inside the ephemeral groups, if found returns its ephemeral group id and the associated action. Otherwise, returns None"""
-        for idx, group in self.ephemeral_groups:
+        """finds an action inside the ephemeral groups, if found returns its ephemeral group id and the associated
+        action. Otherwise, returns None"""
+        for idx, group in self.ephemeral_groups.items():
             for action in group:
                 if action.name == name:
                     return idx, action
 
     def response_meets_action_criteria(self, response: AgentResponse):
-        """Called only by agents. Will return whether a response uses any forced actions or any other future added requirements that may mean that the response is regenerated."""
+        """Called only by agents. Will return whether a response uses any forced actions or any other future added
+        requirements that may mean that the response is regenerated."""
         if len(self.forced_actions_queue) == 0:
             return True
 
@@ -214,8 +216,8 @@ class Agent(metaclass=abc.ABCMeta):
 
     def speak_recent_response(self):
         res = self.find_recent_response()
-        print('speaking: ' + res.value)
         if res.value == '':
             return
+        print('speaking: ' + res.value)
         self._speech_provider.generate_speech(res.value)
         return

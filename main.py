@@ -15,10 +15,12 @@ agent = OpenAiAgent(Sp())
 wait_run_without_human: asyncio.Future | None = None
 on_env_ctx_added = -1
 
+
 def on_context_added(ctx: AgentContext):
     global on_env_ctx_added
     if isinstance(ctx, EnvironmentalContext):
         on_env_ctx_added = time.time()
+
 
 # async def monitoring_env_ctx():
 #     global on_env_ctx_added
@@ -30,13 +32,15 @@ def on_context_added(ctx: AgentContext):
 
 agent.context_added_notifiers.append(on_context_added)
 
-agent.add_context(SystemPromptContext("You are a TTS ai. Keep responses speakable and short. Dont make lists. Be decisive. No markdown is allowed."))
+agent.add_context(SystemPromptContext(
+    "You are a TTS ai. Keep responses speakable and short. Dont make lists. Be decisive. No markdown is allowed."))
+
 
 async def main():
     global wait_run_without_human
     global on_env_ctx_added
-    use_stt = False
-    auto_prompt = True
+    use_stt = True
+    auto_prompt = False
     websocket_manager = WebsocketManager(agent)
 
     # Create the websocket task and await it in the background
@@ -46,8 +50,6 @@ async def main():
     loop = asyncio.get_running_loop()
 
     wait_run_without_human = loop.create_future()
-
-    await websocket_manager.requests_action.wait()
 
     try:
         while True:
@@ -69,8 +71,6 @@ async def main():
                     text = await loop.run_in_executor(None, input, 'speak to it: ')
                 print('you said ' + text)
                 agent.add_context(HumanContext(text))
-
-
 
             res = None
             while res is None or res.finish_reason != FinishReason.STOP:
