@@ -86,10 +86,10 @@ class OpenAiAgent(Agent, metaclass=ABCMeta):
         print(dumps(messages, indent=2))
 
         response = self.client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4o",
             messages=messages,
             tools=tools if len(tools) > 0 else NOT_GIVEN,
-            tool_choice= 'required' if self.action_manager.action_force is not None else NOT_GIVEN
+            # tool_choice= 'required' if self.action_manager.action_force is not None else NOT_GIVEN
         )
 
         choice = response.choices[0]
@@ -112,7 +112,7 @@ class OpenAiAgent(Agent, metaclass=ABCMeta):
         agent_res = AgentResponse(choice.message.content, tcs, finish_reason)
 
         if not self.action_manager.response_meets_action_criteria(agent_res):
-            print('agent did not respond to criteria')
+            print('agent did not respond to criteria yet, prompting again.')
             agent_res = self.generate_response()
 
         return agent_res

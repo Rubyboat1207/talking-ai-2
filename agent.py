@@ -117,6 +117,8 @@ class ActionManager:
         requirements that may mean that the response is regenerated."""
         if self.action_force is None:
             return True
+        if response.tool_calls is None:
+            return False
 
         names = [call.value for call in response.tool_calls]
 
