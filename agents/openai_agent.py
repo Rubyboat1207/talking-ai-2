@@ -5,7 +5,7 @@ from openai import Client, NOT_GIVEN
 from openai.types.chat import ChatCompletionMessageParam, ChatCompletionAssistantMessageParam, ChatCompletionToolParam
 
 from agent import Agent, AgentResponse, HumanContext, EnvironmentalContext, ToolCallContext, AgentContext, \
-    ToolCallResponseContext, FinishReason, SystemPromptContext
+    ToolCallResponseContext, FinishReason, SystemPromptContext, Action
 
 
 class OpenAiAgent(Agent, metaclass=ABCMeta):
@@ -65,7 +65,14 @@ class OpenAiAgent(Agent, metaclass=ABCMeta):
 
         tools: list[ChatCompletionToolParam] = []
 
-        for action in self.action_manager.actions.values():
+        action_values: list[Action] = self.action_manager.actions.values()
+
+        if self.action_manager.action_force is not None:
+            def i_dont_like_lambdas_in_python(action: Action):
+                return action.name in self.action_manager.action_force
+            action_values = list(filter(i_dont_like_lambdas_in_python, action_values))
+
+        for action in action_values:
             tools.append({
                 'function': {
                     'name': action.name,
@@ -74,26 +81,15 @@ class OpenAiAgent(Agent, metaclass=ABCMeta):
                 },
                 'type': 'function'
             })
-        for group in self.action_manager.ephemeral_groups.values():
-            for action in group:
-                tools.append({
-                    'function': {
-                        'name': action.name,
-                        'description': action.description,
-                        'parameters': action.parameter_schema
-                    },
-                    'type': 'function'
-                })
+
 
         print(dumps(messages, indent=2))
 
         response = self.client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4o-mini",
             messages=messages,
             tools=tools if len(tools) > 0 else NOT_GIVEN,
-            tool_choice=NOT_GIVEN if len(tools) == 0 else 'auto' if
-            len(self.action_manager.forced_actions_queue) == 0
-            else {'function': {'name': self.action_manager.forced_actions_queue[0]}, 'type': 'function'}
+            tool_choice= 'required' if self.action_manager.action_force is not None else NOT_GIVEN
         )
 
         choice = response.choices[0]

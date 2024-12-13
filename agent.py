@@ -11,10 +11,12 @@ from speech_provider import SpeechProvider
 class AgentContext:
     guid: str
     value: str
+    ephemeral: bool
 
     def __init__(self, value: str):
         self.guid = str(uuid.uuid4())
         self.value = value
+        self.ephemeral = False
 
 
 class EnvironmentalContext(AgentContext):
@@ -76,45 +78,30 @@ class ActionManager:
     """Manages all action related activities instead of the agent"""
     lifetime_ephemeral_group_count: int
     actions: dict[str, Action]
-    ephemeral_groups: dict[int, list[Action]]
-    forced_actions_queue: list[str]
+    action_force: list[str] or None
 
     action_mutex: Lock
 
     def __init__(self):
         self.lifetime_ephemeral_group_count = 0
         self.actions = {}
-        self.ephemeral_groups: dict[int, list[Action]] = {}
-        self.forced_actions_queue = []
+        self.action_force = None
         self.action_mutex = Lock()
 
     async def preform_action(self, call: ToolCallContext) -> ToolCallResponseContext:
         """Called only by agents. Will execute a function of a given name."""
         self.action_mutex.acquire()
-        if call.value in self.actions:
-            action = self.actions[call.value]
-        else:
-            ephemeral = self._find_action_name_in_ephemeral_group(call.value)
-            if ephemeral is None:
-                res_ctx = ToolCallResponseContext("action not recognised, try a different function name", call.guid)
-                call.response_id = res_ctx.guid
-                self.action_mutex.release()
-                return res_ctx
-
-            ephemeral_group_id, action = ephemeral
-            del self.ephemeral_groups[ephemeral_group_id]
-
-        if action.name in self.forced_actions_queue:
-            self.forced_actions_queue.remove(action.name)
+        action = self.actions[call.value]
 
         try:
             resp = action.func(call.parameters)
 
             if asyncio.iscoroutine(resp):
                 resp = await resp
+
+            self.action_force = None
         except Exception as error:
             res_ctx = ToolCallResponseContext(f"An error occurred {str(error)}. Tell the user.", call.guid)
-            print("AN ERROR IS HAPPENING ALSKDLADSLALJDNAS")
             print('an error occurred:', error)
             call.response_id = res_ctx.guid
             self.action_mutex.release()
@@ -125,23 +112,15 @@ class ActionManager:
         self.action_mutex.release()
         return res_ctx
 
-    def _find_action_name_in_ephemeral_group(self, name: str) -> (int, Action) or None:
-        """finds an action inside the ephemeral groups, if found returns its ephemeral group id and the associated
-        action. Otherwise, returns None"""
-        for idx, group in self.ephemeral_groups.items():
-            for action in group:
-                if action.name == name:
-                    return idx, action
-
     def response_meets_action_criteria(self, response: AgentResponse):
         """Called only by agents. Will return whether a response uses any forced actions or any other future added
         requirements that may mean that the response is regenerated."""
-        if len(self.forced_actions_queue) == 0:
+        if self.action_force is None:
             return True
 
         names = [call.value for call in response.tool_calls]
 
-        return any([name in self.forced_actions_queue for name in names])
+        return any([name in self.action_force for name in names])
 
 
     def register_action(self, action: Action):
@@ -152,18 +131,6 @@ class ActionManager:
     def unregister_action(self, name: str):
         """Removes the action of the given name from the internal registered actions dictionary."""
         del self.actions[name]
-
-    def enqueue_forced_action(self, name: str):
-        """Will force the action of the given name to be run before the next response."""
-        if name not in self.forced_actions_queue:
-            self.forced_actions_queue.append(name)
-
-    def create_ephemeral_action_group(self, actions: list[Action]) -> int:
-        """Returns an ephemeral group ID. An ephemeral group is removed once one is used. Good for making a decision."""
-        self.ephemeral_groups[self.lifetime_ephemeral_group_count] = actions
-        self.lifetime_ephemeral_group_count += 1
-
-        return self.lifetime_ephemeral_group_count
 
 
 class Agent(metaclass=abc.ABCMeta):
@@ -216,7 +183,7 @@ class Agent(metaclass=abc.ABCMeta):
 
     def speak_recent_response(self):
         res = self.find_recent_response()
-        if res.value == '':
+        if res.value == '' or res.value is None:
             return
         print('speaking: ' + res.value)
         self._speech_provider.generate_speech(res.value)
